@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+from gekko import GEKKO
+import math
 st.set_page_config(layout="wide")
 st.header("API Pricing Royalties Calculator")
 
@@ -101,17 +103,11 @@ calls_per_company_size = {
 
 sample = 5000
 
-
-
-st.subheader("Revenue Calculator: Select Desired Values")
-
-col1, col2, col3 = st.beta_columns(3)
-with col1:
-    Royalties = st.slider("Royalties %", 0.0, 10.0, 1.0, 0.025)
-with col2:
-    Upfront_Payment = st.number_input("Upfront Cost Charged to Client $", value=0)
-with col3:
-    Desired_revenue = st.number_input("Desired Revenue per year ($)", value=150000)
+st.sidebar.subheader("Revenue Calculator: Select Desired Values")
+Royalties = st.sidebar.slider("Royalties %", 0.1, 10.0, 1.0, 0.025) 
+Upfront_Payment = st.sidebar.number_input("Upfront Cost Charged to Client $", value=0)
+Desired_revenue = st.sidebar.number_input("Desired Revenue per year ($)", value=150000)
+  
 
 def find_number_of_calls(r, upfront_cost, price, revenue):
     number_of_calls = (revenue - upfront_cost)/(price*(r/100))
@@ -126,6 +122,7 @@ def get_pricing_values(price_dict, revenue, upfront_cost, r):
         entries[i] = round(calls)
         # entries.append({"Provider": "{0}".format(i), "1k Calls Required" : round(calls)})
     return pd.Series(entries, name = "1k Calls")
+
 
 def calculate_client_revenue(prices, company_calls, small, med, large, r):
     ent = []
@@ -158,7 +155,59 @@ def calculate_client_revenue(prices, company_calls, small, med, large, r):
             provider = i))
         
     return pd.DataFrame(ent)
+
+
+def get_optimal_client_numbers(price, r, calls, desired_revenue):
+    m = GEKKO()
+    rev_opt = m.Param(desired_revenue)
+    c_s, c_m =  [m.Var(lb=0, integer=True) for i in range(2)]
+    c_l = m.Var(lb=0, integer=True)
+
+    m.Equation((c_s*calls['s'] + c_m*calls['m'] + c_l*calls['l'])*price*r == rev_opt)
+    m.Obj(0.115*c_s + 0.75*c_m + 4*c_l)
+    m.options.IMODE = 3
+    m.solve(disp=False)
+    
+    return math.ceil(c_s.value[0]), math.ceil(c_m.value[0]), math.ceil(c_l.value[0])
+#     return c_s.value[0] , c_m.value[0], c_l.value[0]
+    
+@st.cache  
+def calculate_client_numbers(prices, company_calls, desired_revenue, r):
+    ent = []
+    
+    for i in prices.keys():
         
+        small, med, large = get_optimal_client_numbers(prices[i], r, company_calls, desired_revenue)
+        
+        if i == "Here":
+            s_revenue = prices[i]*r*((company_calls['s']-1000)*small)
+            m_revenue = prices[i]*r*((company_calls['m']-1000)*med)
+            l_revenue = prices[i]*r*((company_calls['l']-100)*large)            
+            
+        else:        
+            s_revenue = prices[i]*r*(company_calls['s']*small)
+            m_revenue = prices[i]*r*(company_calls['m']*med)
+            l_revenue = prices[i]*r*(company_calls['l']*large)
+
+        ent.append(dict(
+            revenue = s_revenue,
+            client_size = "Small",
+            provider = i,
+            clients = small))
+
+        ent.append(dict(
+            revenue = m_revenue,
+            client_size = "Medium",
+            provider = i,
+            clients = med))
+
+        ent.append(dict(
+            revenue = l_revenue,
+            client_size = "Large",
+            provider = i,
+            clients = large))
+        
+    return pd.DataFrame(ent)          
 
 st.subheader("""Calls Required to reach desired revenue with royalties of {0}% with an upfront cost of ${1} """.format(Royalties, Upfront_Payment))
 
@@ -284,19 +333,69 @@ g = alt.Chart(cdf, height=500).mark_bar().encode(
 ).interactive()
 
 lines_ = [alt.Chart(pd.DataFrame({'y': [i]})).mark_rule(strokeDash=[10, 10]).encode(y='y') for i in [25000, 50000, 100000, Desired_revenue]]
-pfd = alt.layer(g, lines_[0], lines_[1], lines_[2], lines_[3])
+pfd = alt.layer(lines_[0], lines_[1], lines_[2], lines_[3], g)
 st.subheader("Revenue from Clients")
-st.altair_chart(g, use_container_width=True)
+st.altair_chart(pfd , use_container_width=True)
+
+st.subheader("Revenue from Providers")
+st.table(cdf.groupby("provider").sum())
+
+st.subheader("Clients needed per provider to make ${0} Revenue".format(str(Desired_revenue)))
+
+_col1_, _col2_ = st.beta_columns(2)
+
+with _col1_:
+    Desired_revenue_client_calc = st.number_input("Desired revenue per year ($)", value=150000)
+with _col2_:
+    Royalties_client_calc = st.slider("Royalties (%)", 0.1, 10.0, 1.0, 0.025)
+
+
+
+
+cn_df = calculate_client_numbers(prices=pricing, company_calls= calls_per_company_size, desired_revenue=Desired_revenue_client_calc, r=Royalties_client_calc/100)
+
+client_r = alt.Chart(cn_df, height=500).mark_bar().encode(
+    x=alt.X('provider', axis=alt.Axis( title='Provider', labelAngle=0)),
+    y=alt.Y('sum(revenue)', axis=alt.Axis(title='Revenue Made ($)')),
+    color='client_size',
+    tooltip = ['client_size','clients']
+).properties(
+    width=500
+).interactive()
+
+client_n = alt.Chart(cn_df, height=500).mark_bar().encode(
+    x=alt.X('provider', axis=alt.Axis( title='Provider', labelAngle=0)),
+    y=alt.Y('clients', axis=alt.Axis(title='Number of Clients')),
+    color='client_size',
+    tooltip = ['client_size','clients']
+).properties(
+    width=500
+).interactive()
+
+
 
 _col1, _col2 = st.beta_columns(2)
 
 with _col1:
-    st.subheader("Revenue Against Targets")
-    st.altair_chart(pfd, use_container_width=True)
+    st.subheader("Revenue per Providers")
+    st.altair_chart(client_r , use_container_width=True)
 
 with _col2:
-    st.subheader("Revenue from Providers")
-    st.table(cdf.groupby("provider").sum())
+    st.subheader("Number of Clients Needed")
+    st.altair_chart(client_n , use_container_width=True)
+
+    
+
+
+
+
+# with col1_:
+#     st.write("Average Prices per 1k calls")
+#     st.write(pd.Series(pricing, name="Pricing (USD)"))
+
+
+
+
 
 
 # n_2 = alt.selection(type='single', nearest=True, on='mouseover',fields=['Revenue_to_us'], empty='none')
