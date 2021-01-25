@@ -18,6 +18,9 @@ cryptography @ file:///opt/concourse/worker/volumes/live/f99edcba-5ff4-4190-7603
 decorator==4.4.2
 defusedxml==0.6.0
 entrypoints==0.3
+Flask==1.1.2
+Flask-Cors==3.0.10
+gekko==0.2.8
 gitdb==4.0.5
 GitPython==3.1.12
 idna @ file:///home/linux1/recipes/ci/idna_1610986105248/work
@@ -26,6 +29,7 @@ ipykernel @ file:///opt/concourse/worker/volumes/live/b72ce213-516a-4998-6411-ba
 ipython @ file:///opt/concourse/worker/volumes/live/e7984589-62cc-408e-50d0-2b35d931bd7e/volume/ipython_1607355397780/work
 ipython-genutils @ file:///tmp/build/80754af9/ipython_genutils_1606773439826/work
 ipywidgets @ file:///tmp/build/80754af9/ipywidgets_1610481889018/work
+itsdangerous==1.1.0
 jedi==0.17.2
 Jinja2 @ file:///home/linux1/recipes/ci/jinja2_1610990516718/work
 jsonschema @ file:///tmp/build/80754af9/jsonschema_1602607155483/work
@@ -85,5 +89,6 @@ vega-datasets @ file:///home/conda/feedstock_root/build_artifacts/vega_datasets_
 watchdog==1.0.2
 wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
 webencodings==0.5.1
+Werkzeug==1.0.1
 widgetsnbextension @ file:///opt/concourse/worker/volumes/live/42762d5a-6520-4b06-68a2-619dfed6a007/volume/widgetsnbextension_1607531500933/work
 zipp @ file:///tmp/build/80754af9/zipp_1604001098328/work
